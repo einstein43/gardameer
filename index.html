@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Gardameer</title>
+<meta name="description" content="Interactieve gids voor het Gardameer: SVG-kaart, pins, vijf dingen per stad."/>
+<meta name="theme-color" content="#1F6F86"/>
+<link rel="icon" type="image/svg+xml" href="favicon.svg"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=Fraunces:opsz,wght@9..144,500;9..144,600&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:#efe8dc; --surface:#f7f2e8; --surface-2:#ebe3d4; --ink:#1c2628;
+  --muted:#5c676a; --faint:#8a8480; --water:#1f6f86; --water-deep:#13485a;
+  --water-soft:#d5e6ea; --land:#d4c6af; --pin:#b23a2f; --line:rgba(28,38,40,.12);
+  --font-display:"Fraunces","Iowan Old Style",Palatino,serif;
+  --font-sans:"Figtree","Segoe UI",system-ui,sans-serif;
+  --shadow: 0 0 0 1px rgba(28,38,40,.06), 0 1px 2px -1px rgba(28,38,40,.06), 0 8px 24px -12px rgba(28,38,40,.12);
+}
+* { box-sizing:border-box }
+html { -webkit-font-smoothing:antialiased }
+body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--font-sans); line-height:1.5 }
+button { font:inherit; color:inherit; cursor:pointer }
+h1,h2,h3 { text-wrap:balance; font-family:var(--font-display); font-weight:500; letter-spacing:-.02em }
+p { text-wrap:pretty }
+.header { border-bottom:1px solid var(--line); padding:24px 32px }
+.kicker { margin:0; font-size:14px; font-weight:500; color:var(--water); letter-spacing:.04em }
+h1 { margin:8px 0 0; font-size:clamp(2rem,4vw,3rem); line-height:1.1 }
+.lede { margin:8px 0 0; max-width:36rem; color:var(--muted) }
+.meta { margin:0; font-size:14px; color:var(--faint) }
+.row { display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; justify-content:space-between }
+.layout { display:grid }
+@media (min-width:900px) { .layout { grid-template-columns:1.05fr .95fr } .map-wrap { border-right:1px solid var(--line); border-bottom:none } }
+.map-wrap { border-bottom:1px solid var(--line); padding:16px 24px }
+svg { width:100%; height:auto; max-width:32rem; display:block; margin:0 auto }
+.filters { display:flex; flex-wrap:wrap; gap:8px; padding:16px 24px; border-bottom:1px solid var(--line) }
+.chip { height:44px; border:0; border-radius:999px; padding:0 16px; font-size:14px; font-weight:500; background:var(--surface); box-shadow:var(--shadow) }
+.chip[aria-pressed="true"] { background:var(--ink); color:var(--bg); box-shadow:none }
+.list { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line); margin:0; padding:0; list-style:none }
+.list button { width:100%; min-height:64px; border:0; background:var(--bg); text-align:left; padding:12px 16px; display:flex; flex-direction:column; justify-content:center }
+.list button:hover { background:var(--surface) }
+.list button.active { background:var(--water-soft) }
+.list .name { font-weight:500 }
+.list .sub { font-size:14px; color:var(--muted) }
+.detail { padding:24px; border-top:1px solid var(--line); scroll-margin-top:16px }
+.detail h2 { margin:4px 0 0; font-size:clamp(1.6rem,3vw,2rem) }
+.detail .tag { margin:4px 0 0; color:var(--muted) }
+ol { margin:24px 0 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:16px }
+ol li { display:flex; gap:16px }
+.num { width:32px; height:32px; border-radius:999px; background:var(--surface-2); color:var(--water); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-size:14px; flex-shrink:0 }
+.note { margin:4px 0 0; font-size:14px; color:var(--muted) }
+@media (prefers-reduced-motion:reduce) { * { scroll-behavior:auto !important } }
+</style>
+</head>
+<body>
+<header class="header">
+  <p class="kicker">Lago di Garda</p>
+  <div class="row">
+    <div>
+      <h1>Gardameer</h1>
+      <p class="lede">Zestien steden op de oever. Tik een pin of een naam — vijf dingen die de stad de moeite waard maken.</p>
+    </div>
+    <p class="meta">16 steden · geen tiles, geen Leaflet</p>
+  </div>
+</header>
+<div class="layout">
+  <section class="map-wrap">
+    <svg viewBox="0 0 440 666.61" role="img" aria-label="Kaart van het Gardameer met steden als pins" id="map"></svg>
+  </section>
+  <section>
+    <div class="filters" id="filters"></div>
+    <ul class="list" id="list"></ul>
+    <article class="detail" id="detail"></article>
+  </section>
+</div>
+<script>
+const TOWNS = [{"id": "riva", "name": "Riva del Garda", "shore": "noord", "tag": "Wind & bergen", "x": 345.4, "y": 54, "labelSide": "left", "things": [{"title": "Piazza III Novembre", "note": "Het waterplein met de Rocca, palazzi en de kerk — het gezicht van Riva."}, {"title": "Ponale-pad", "note": "Klifpad in de oude militaire weg, naar Pregasina met uitzicht op het smalle noorden."}, {"title": "Wind- en kitesurfen", "note": "De ochtend-Peler en middag-Ora maken van Riva een van de beste spots van Europa."}, {"title": "Lago di Tenno", "note": "Turkoois bergmeer, twintig minuten omhoog. Helder, koel, bijna onwerkelijk."}, {"title": "Bastione", "note": "Vesting boven de stad. Te voet via de trap of met de tunnel-lift."}]}, {"id": "torbole", "name": "Torbole", "shore": "noord", "tag": "Surfhoofdstad", "x": 384, "y": 82.3, "labelSide": "right", "things": [{"title": "Windsurfen", "note": "Wereldbekend om de Peler. Scholen, verhuur en races pal voor de promenade."}, {"title": "Spiaggia di Torbole", "note": "Kiezelstrand met zicht op de Brenta. Vroeg komen voor een plek in de luwte."}, {"title": "Centro storico", "note": "Smalle steegjes tot aan de oever, visrestaurants en een stille kerk."}, {"title": "Castel Penede", "note": "Ruïne boven Nago. Korte klim, breed uitzicht over Torbole en het meer."}, {"title": "Mountainbiken", "note": "Trails naar Monte Velo en de old Ponale — Torbole is ook een bike-dorp."}]}, {"id": "limone", "name": "Limone sul Garda", "shore": "west", "tag": "Citroenterrassen", "x": 292, "y": 153.9, "labelSide": "left", "things": [{"title": "Limonaia del Castèl", "note": "Historische citroenserres tegen de klif. Dit dorp gaf de limone zijn naam."}, {"title": "Ciclopista del Garda", "note": "Houten fietsbrug langs de rotswand — het mooiste stuk van de westelijke fietsroute."}, {"title": "Centro storico", "note": "Trappen, lemon-winkels en balkons boven het water. Kom te voet, de auto blijft buiten."}, {"title": "Olijfgaarden", "note": "Korte klim boven het dorp, met extra-vergine van de noordelijkste olijfbomen van Italië."}, {"title": "Boot naar Malcesine", "note": "Twintig minuten over het smalle noorden. De bergen vallen hier bijna in het water."}]}, {"id": "malcesine", "name": "Malcesine", "shore": "oost", "tag": "Kasteel & Baldo", "x": 332, "y": 207.5, "labelSide": "right", "things": [{"title": "Castello Scaligero", "note": "Kasteel van de Scaligeri. Goethe schetste het — en werd er bijna gearresteerd."}, {"title": "Funivia Monte Baldo", "note": "Draaiende kabelbaan naar 1760 m. Boven: alpenweide, onder: het hele meer."}, {"title": "Palazzo dei Capitani", "note": "Gotisch paleis aan de haven, ooit zetel van de Venetiaanse kapiteins."}, {"title": "Centro storico", "note": "Steile steegjes van de haven naar het kasteel. 's Avonds stiller, mooier."}, {"title": "Monte Baldo", "note": "De 'tuin van Europa': orchideeën, gemzen en een panorama tot de Dolomieten."}]}, {"id": "brenzone", "name": "Brenzone", "shore": "oost", "tag": "Stille oostkant", "x": 288, "y": 280.7, "labelSide": "right", "things": [{"title": "Castelletto", "note": "Kleinste, stilste haven van de oostkant. Zwemmen van de kade, zonder stranddrukte."}, {"title": "Chiesa di San Zeno", "note": "Romaans kerkje in Prada Alta, hoog boven het meer tussen kastanjes."}, {"title": "Sentiero della Salvia", "note": "Sage-pad tussen olijven van Magugnano naar Castelletto."}, {"title": "Porto di Castelletto", "note": "Stenen kade, helder water, ferry's die bijna niemand neemt."}, {"title": "Baldo-helling", "note": "Wandelen zonder de rijen van Malcesine. Start in Assenza of Prada."}]}, {"id": "gargnano", "name": "Gargnano", "shore": "west", "tag": "Olijven & villa's", "x": 136, "y": 305.3, "labelSide": "left", "things": [{"title": "Villa Feltrinelli", "note": "Historische villa aan het water — Mussolini zat er, nu een hotel tussen cipressen."}, {"title": "Porto di Gargnano", "note": "De mooiste kleine haven van de westkant: boten, palazzi, geen boulevard-lawaai."}, {"title": "Frantoio", "note": "Olijfolie van de Garda-west. Proeven in het dorp, plukken zie je in november."}, {"title": "Bogliaco", "note": "Landhuis en een stuk Gardesana waar ooit een heuvelklim werd gereden."}, {"title": "Isola di Garda", "note": "Vanaf Gargnano vertrekken boten naar het enige eiland met een villa in neogotiek."}]}, {"id": "toscolano", "name": "Toscolano-Maderno", "shore": "west", "tag": "Papier & strand", "x": 132, "y": 363.6, "labelSide": "left", "things": [{"title": "Valle delle Cartiere", "note": "Papermolen-vallei. Eeuwenlang werd hier papier gemaakt voor Venetië."}, {"title": "Spiaggia di Maderno", "note": "Langste zandstrand van de westkant. Familie, ferry, gelato op de pier."}, {"title": "Madonna di Montecastello", "note": "Heiligdom hoog boven het meer. Haarspeldbochten, daarna stilte."}, {"title": "Ferry naar Torri", "note": "De kortste oversteek van het meer. Auto mee, of alleen te voet."}, {"title": "Gardesana Occidentale", "note": "De westelijke kustweg: tunnels, uitzichten, het stuk tussen Maderno en Gargnano."}]}, {"id": "gardone", "name": "Gardone Riviera", "shore": "west", "tag": "Belle Époque", "x": 96, "y": 383.9, "labelSide": "left", "things": [{"title": "Vittoriale degli Italiani", "note": "D'Annunzio's excentrieke villa: oorlogsschip in de tuin, amfitheater, mausoleum."}, {"title": "Giardino André Heller", "note": "Botanische tuin tegen de helling, met werk van Haring, Niki de Saint Phalle."}, {"title": "Promenade", "note": "Belle Époque-hotels, palmen, het Grand Hotel. Gardone was de winterkuur van Europa."}, {"title": "Fondazione Il Vittoriale", "note": "Het museum in het huis zelf — volgepropt, theatraal, nergens anders zo."}, {"title": "Passeggiata al lago", "note": "Vlakke oeverwandeling naar Salò. Avondlicht op het brede zuiden."}]}, {"id": "torri", "name": "Torri del Benaco", "shore": "oost", "tag": "Kasteelhaven", "x": 226, "y": 397, "labelSide": "right", "things": [{"title": "Castello Scaligero", "note": "Kasteel met een olijfolie-museum en limonaia in de binnenhof."}, {"title": "Porto", "note": "Beschutte haven, ferry naar Maderno, vis op de kade bij zonsondergang."}, {"title": "Pai", "note": "Hamlet met muurschilderingen, een paar bochten boven Torri."}, {"title": "Albisano", "note": "Dorp boven de kust, start van wandelingen over de oude mulattiere."}, {"title": "Isola del Garda", "note": "Vanaf hier zie je het eiland liggen. Boten in het seizoen vanaf de westkant."}]}, {"id": "salo", "name": "Salò", "shore": "west", "tag": "Promenade", "x": 68, "y": 402.1, "labelSide": "left", "things": [{"title": "Lungolago Zanardelli", "note": "Langste promenade van het meer. Palazzi, arcades, het water pal ernaast."}, {"title": "Duomo di Santa Maria Annunziata", "note": "Late-gotische duomo aan de piazza, met een renaissance-portaal."}, {"title": "MuSA", "note": "Stedelijk museum in een palazzo: Salò als hoofdstad van de RSI, en als kuuroord."}, {"title": "Centro storico", "note": "Winkels onder de portici, vis op de piazza, geen pretparkdrukte."}, {"title": "Valtenesi-wijnen", "note": "Chiaretto en Groppello van de heuvels achter Salò. Proeven in Manerba of Polpenazze."}]}, {"id": "garda", "name": "Garda", "shore": "oost", "tag": "Naamgever", "x": 244, "y": 435.1, "labelSide": "right", "things": [{"title": "Punta San Vigilio", "note": "Cipressen, baai en de Taverna. Het mooiste stukje oostkant — kom vroeg of per boot."}, {"title": "Centro storico", "note": "Piazza, kasteelruïne en een haven die de naam aan het hele meer gaf."}, {"title": "Villa Albertini", "note": "Park en villa tussen Garda en San Vigilio, cipressen in het zicht van het water."}, {"title": "Spiaggia", "note": "Stadsstrand pal bij het centrum. Druk in augustus, in juni nog doenlijk."}, {"title": "Ferry-knooppunt", "note": "Van hier naar Bardolino, Torri, Maderno. Het meer lezen vanaf het dek."}]}, {"id": "bardolino", "name": "Bardolino", "shore": "oost", "tag": "Wijn", "x": 256, "y": 473.1, "labelSide": "right", "things": [{"title": "Bardolino DOC", "note": "Lichte rode wijn en de rosé Chiaretto. De heuvels achter het dorp staan vol ranken."}, {"title": "Museo del Vino Zeni", "note": "Wijnmuseum én cantina. Proeven, daarna de Strada del Vino fietsen."}, {"title": "San Severo", "note": "Romaanse kerk met fresco's, even buiten het centrum in Cisano-richting."}, {"title": "Lungolago", "note": "Promenade met gelato, boten en zicht op het brede zuiden."}, {"title": "Olive Oil Museum", "note": "In Cisano: hoe de Garda-olijf hier al eeuwen wordt geperst."}]}, {"id": "lazise", "name": "Lazise", "shore": "oost", "tag": "Ommuurde haven", "x": 266, "y": 524.3, "labelSide": "right", "things": [{"title": "Castello Scaligero", "note": "Kasteel en complete stadsmuur. Lazise is een van de weinige écht ommuurde oeversteden."}, {"title": "Porto Vecchio", "note": "Binnenhaven binnen de muren. Avondlicht, vis, geen auto's."}, {"title": "Mura veneziane", "note": "Wandel over de Venetiaanse muur, van de Dogana naar de noordpoort."}, {"title": "Piazza Vittorio Emanuele", "note": "Het hart achter de poort: cafés, markt, de kerk van San Nicolò."}, {"title": "Canevaworld", "note": "Waterpark en Movieland, vijf minuten buiten het centrum — niet voor iedereen, wel dichtbij."}]}, {"id": "sirmione", "name": "Sirmione", "shore": "zuid", "tag": "Schiereiland", "x": 144.8, "y": 538.7, "labelSide": "left", "things": [{"title": "Grotte di Catullo", "note": "Romeinse villa op de punt van het schiereiland. Catullus' naam, keizerlijke schaal."}, {"title": "Rocca Scaligera", "note": "Kasteel met ophaalbrug en haven erin. De poort naar het oude Sirmione."}, {"title": "Terme di Sirmione", "note": "Zwavelbronnen in het meer. Kuuroord sinds de Romeinen, nu Aquaria en het hotel."}, {"title": "Centro storico", "note": "Schiereiland zonder auto's. Smalle straten, water aan twee kanten."}, {"title": "Jamaica Beach", "note": "Helder, ondiep water aan de punt. Rotsplaten, niet zand — zwemmen als in een bad."}]}, {"id": "desenzano", "name": "Desenzano del Garda", "shore": "zuid", "tag": "Poort van het meer", "x": 72, "y": 567.4, "labelSide": "left", "things": [{"title": "Castello", "note": "Vierkante burcht boven de stad. Avondzicht over de hele zuidkant."}, {"title": "Villa Romana", "note": "Romeinse villa met mozaïeken, onder de huidige straten van Desenzano."}, {"title": "Porto", "note": "Boulevard, zaterdagmarkt, ferry's. Hier begint het brede meer."}, {"title": "Duomo Santa Maria Maddalena", "note": "Barokke duomo aan de piazza, met een Tiepolo in het koor."}, {"title": "Trein", "note": "Beste OV-knooppunt van het meer: Milaan, Verona, Venetië in één overstap."}]}, {"id": "peschiera", "name": "Peschiera del Garda", "shore": "zuid", "tag": "Vesting & Mincio", "x": 215.6, "y": 616, "labelSide": "right", "things": [{"title": "Fortezza veneziana", "note": "Stervormige vesting, UNESCO. De Mincio stroomt door de grachten de Po-vlakte in."}, {"title": "Porto Canale", "note": "Kanaalhaven binnen de muren. Bruggetjes, gelato, het meer als achtergrond."}, {"title": "Centro storico", "note": "Klein, ommuurd, zonder de drukte van Sirmione. Wandelen over de wallen."}, {"title": "Ciclovia del Mincio", "note": "Fietspad langs de rivier naar Valeggio en Mantova. Vlak, groen, een dagtocht."}, {"title": "Gardaland", "note": "Tien minuten verder. Grootste pretpark van Italië — los van het vestingstadje."}]}];
+const SHORE_LABEL = {"noord": "Noord", "west": "West", "oost": "Oost", "zuid": "Zuid"};
+const LAKE_PATH = "M 64.00 530.57 L 65.14 536.10 L 73.04 544.79 L 88.36 545.16 L 87.45 560.78 L 93.41 569.36 L 117.69 578.46 L 129.11 575.82 L 138.13 564.26 L 144.46 561.33 L 147.41 539.95 L 149.88 543.52 L 147.90 551.94 L 151.38 572.25 L 164.80 577.67 L 173.02 574.16 L 177.64 582.77 L 198.20 587.52 L 216.93 602.61 L 219.77 600.60 L 221.47 594.68 L 219.41 594.23 L 223.45 585.20 L 234.12 575.16 L 239.17 556.69 L 244.79 550.29 L 253.37 530.89 L 246.36 493.71 L 247.66 484.25 L 237.85 470.41 L 239.92 465.00 L 233.20 450.48 L 233.06 442.68 L 226.66 436.52 L 217.34 434.98 L 206.47 442.09 L 201.36 442.49 L 203.24 426.49 L 212.53 409.89 L 213.44 394.66 L 218.10 392.07 L 228.47 365.10 L 242.87 347.41 L 285.14 270.10 L 294.20 260.00 L 294.86 251.59 L 306.49 240.23 L 310.44 231.70 L 308.73 228.83 L 306.45 229.99 L 306.56 224.96 L 316.33 218.26 L 316.28 209.71 L 328.69 180.86 L 338.59 174.78 L 342.91 165.45 L 354.56 154.71 L 364.56 113.08 L 363.52 107.35 L 375.52 90.49 L 375.82 83.83 L 367.41 78.94 L 365.93 73.71 L 359.16 73.67 L 349.05 68.29 L 347.21 64.00 L 343.83 64.21 L 342.77 79.82 L 338.39 92.72 L 339.92 100.57 L 332.98 116.28 L 329.64 132.60 L 304.59 147.10 L 305.29 155.67 L 296.64 166.76 L 291.07 188.94 L 267.84 218.02 L 269.73 222.33 L 255.27 244.59 L 236.91 257.00 L 223.26 276.11 L 191.63 304.17 L 185.09 317.08 L 185.90 323.44 L 177.97 333.88 L 155.91 353.26 L 157.45 362.60 L 154.27 369.98 L 145.77 372.06 L 137.63 366.14 L 129.51 372.42 L 129.64 377.48 L 119.38 378.62 L 104.06 388.50 L 103.14 392.08 L 93.39 393.29 L 82.85 401.39 L 75.85 401.17 L 71.71 405.31 L 72.44 412.85 L 100.43 407.52 L 109.80 409.53 L 115.38 421.40 L 122.20 421.16 L 115.90 424.18 L 113.91 428.82 L 103.95 433.09 L 96.07 443.22 L 99.17 450.46 L 106.15 455.55 L 114.28 449.44 L 112.42 454.52 L 120.29 458.98 L 121.64 466.32 L 117.63 472.50 L 106.05 480.37 L 103.29 486.58 L 104.38 494.28 L 85.48 506.26 L 69.39 522.37 Z";
+const ISOLA = {"x": 132.31, "y": 418.83};
+const FILTERS = [{id:"all",label:"Alle"},{id:"noord",label:"Noord"},{id:"west",label:"West"},{id:"oost",label:"Oost"},{id:"zuid",label:"Zuid"}];
+let filter = "all";
+let selectedId = "sirmione";
+
+function visibleTowns() {
+  return filter === "all" ? TOWNS : TOWNS.filter(t => t.shore === filter);
+}
+function selected() {
+  return TOWNS.find(t => t.id === selectedId) || TOWNS[0];
+}
+function pick(id) {
+  selectedId = id;
+  const town = TOWNS.find(t => t.id === id);
+  if (town && filter !== "all" && town.shore !== filter) filter = "all";
+  render();
+  if (window.matchMedia("(max-width:899px)").matches) {
+    document.getElementById("detail").scrollIntoView({behavior:"smooth", block:"start"});
+  }
+}
+function renderMap() {
+  const vis = new Set(visibleTowns().map(t => t.id));
+  const pins = TOWNS.map(town => {
+    const dim = vis.has(town.id) ? "1" : ".25";
+    const active = town.id === selectedId;
+    const labelX = town.labelSide === "left" ? town.x - 12 : town.x + 12;
+    const anchor = town.labelSide === "left" ? "end" : "start";
+    return `<g style="opacity:${dim}">
+      <text x="${labelX}" y="${town.y + 3.5}" text-anchor="${anchor}" font-family="Figtree,sans-serif" font-size="${active?11.5:10.5}" font-weight="${active?600:500}" fill="var(--ink)">${town.name}</text>
+      <circle cx="${town.x}" cy="${town.y}" r="${active?18:14}" fill="transparent" style="cursor:pointer" onclick="pick('${town.id}')">
+        <title>${town.name}</title>
+      </circle>
+      <circle cx="${town.x}" cy="${town.y}" r="${active?7:5}" fill="${active?'var(--pin)':'var(--surface)'}" stroke="${active?'var(--pin)':'var(--ink)'}" stroke-width="${active?2:1.6}" pointer-events="none"/>
+    </g>`;
+  }).join("");
+  document.getElementById("map").innerHTML = `
+    <rect width="440" height="666.61" fill="var(--bg)"/>
+    <path d="${LAKE_PATH}" fill="var(--water)" stroke="var(--water-deep)" stroke-width="1.4" stroke-linejoin="round"/>
+    <ellipse cx="${ISOLA.x}" cy="${ISOLA.y}" rx="7.5" ry="4.2" fill="var(--land)" stroke="var(--water-deep)" stroke-width=".8"/>
+    <text x="${ISOLA.x-22}" y="${ISOLA.y-10}" fill="var(--water-deep)" font-family="Figtree,sans-serif" font-size="9" font-weight="500">Isola</text>
+    ${pins}`;
+}
+function renderFilters() {
+  document.getElementById("filters").innerHTML = FILTERS.map(f =>
+    `<button class="chip" type="button" aria-pressed="${f.id===filter}" onclick="setFilter('${f.id}')">${f.label}</button>`
+  ).join("");
+}
+function setFilter(id) { filter = id; render(); }
+function renderList() {
+  document.getElementById("list").innerHTML = visibleTowns().map(t =>
+    `<li><button type="button" class="${t.id===selectedId?'active':''}" onclick="pick('${t.id}')">
+      <span class="name">${t.name}</span>
+      <span class="sub">${SHORE_LABEL[t.shore]} · ${t.tag}</span>
+    </button></li>`
+  ).join("");
+}
+function renderDetail() {
+  const t = selected();
+  document.getElementById("detail").innerHTML = `
+    <p class="kicker">${SHORE_LABEL[t.shore]}oever</p>
+    <h2>${t.name}</h2>
+    <p class="tag">${t.tag}</p>
+    <ol>${t.things.map((th,i)=>`<li><span class="num">${i+1}</span><div><h3 style="margin:0;font-size:16px;font-family:var(--font-sans);font-weight:500;letter-spacing:0">${th.title}</h3><p class="note">${th.note}</p></div></li>`).join("")}</ol>`;
+}
+function render() { renderMap(); renderFilters(); renderList(); renderDetail(); }
+render();
+</script>
+</body>
+</html>
